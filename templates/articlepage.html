@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <style>
+        body {
+            font-family: "Comic Sans MS", sans-serif;
+            background-color: #f9f9f9;
+            margin: 20px;
+            padding: 0;
+        }
+
+        .article-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .article-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .article-date {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+
+        .article-content {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .highlight {
+            background-color: #fce4ec;
+            padding: 0 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+<div class="article-container">
+    <h1 class="article-title">{{.Title}}</h1>
+    <p class="article-date">{{.Date}}</p>
+    <div class="article-content">
+        {{.Content}}
+    </div>
+</div>
+</body>
+</html>
