@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"personal_blog/model"
 )
@@ -18,4 +19,21 @@ func ReadArticle(filePath string) (model.Article, error) {
 	}
 
 	return article, nil
+}
+
+func SaveArticle(filePath string, article model.Article) error {
+	data, err := json.MarshalIndent(article, "", "  ")
+	if err != nil {
+		log.Printf("Error marshalling article %+v: %v", article, err)
+		return err
+	}
+
+	err = os.WriteFile(filePath, data, 0644)
+	if err != nil {
+		log.Printf("Error writing to file %s: %v", filePath, err)
+		return err
+	}
+
+	log.Println("Article saved successfully to", filePath)
+	return nil
 }

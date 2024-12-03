@@ -3,32 +3,175 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"github.com/joho/godotenv"
+	"fmt"
+	"gopkg.in/yaml.v3"
 	"log"
 	"net/http"
 	"os"
 	"personal_blog/model"
 	"personal_blog/utils"
 	"strconv"
+	"strings"
+	"time"
 )
 
-func initConfig() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	} else {
-		log.Println("Environment variables loaded successfully")
-	}
+type Config struct {
+	Auth struct {
+		Username string `yaml:"Username"`
+		Password string `yaml:"Password"`
+	} `yaml:"Auth"`
 }
+
 func main() {
-	initConfig()
 	http.HandleFunc("/", getArticleList)
 	http.HandleFunc("/article/{id}", getArticle)
+	http.HandleFunc("/delete/", deleteArticleHandler)
+	http.HandleFunc("/edit/", updateArticleHandler)
 	http.HandleFunc("/admin", basicAuth(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("This is the protected handler"))
+		getDashboard(w, r)
 	},
 	))
+	http.HandleFunc("/new", addNewArticle)
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func updateArticleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		http.ServeFile(w, r, "templates/updateArticle.html")
+	}
+}
+
+func deleteArticleHandler(w http.ResponseWriter, r *http.Request) {
+	// Перевірка методу запиту
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Отримання ID з URL
+	path := r.URL.Path
+	id := strings.TrimPrefix(path, "/delete/") // Видаляємо "/delete/" з шляху
+
+	if id == "" {
+		http.Error(w, "Article ID missing", http.StatusBadRequest)
+		return
+	}
+
+	// Формуємо шлях до файлу статті
+	filePath := fmt.Sprintf("articles/article%s.json", id)
+
+	// Спроба видалити файл
+	err := os.Remove(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "Article not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to delete article", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	log.Printf("Article with ID %s deleted successfully", id)
+
+	// Перенаправлення на сторінку адміністрування після успішного видалення
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+func addNewArticle(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// Віддаємо HTML форму для створення нової статті
+		http.ServeFile(w, r, "templates/newArticle.html")
+
+	case http.MethodPost:
+		// Парсимо дані з форми
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+			log.Println("Error parsing form data:", err)
+			return
+		}
+
+		// Отримуємо значення полів форми
+		title := r.FormValue("title")
+		content := r.FormValue("content")
+		date := r.FormValue("date")
+
+		// Валідація форми
+		if title == "" || len(title) > 100 {
+			http.Error(w, "Title is required and must be under 100 characters", http.StatusBadRequest)
+			log.Println("Invalid title:", title)
+			return
+		}
+		if content == "" {
+			http.Error(w, "Content is required", http.StatusBadRequest)
+			log.Println("Content is missing")
+			return
+		}
+		_, err = time.Parse("2006-01-02", date)
+		if err != nil {
+			http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
+			log.Println("Invalid date format:", date)
+			return
+		}
+
+		// Завантажуємо існуючі статті
+		articles, err := utils.FetchArticles("./articles")
+		if err != nil {
+			http.Error(w, "Failed to load articles", http.StatusInternalServerError)
+			log.Println("Error fetching articles:", err)
+			return
+		}
+
+		// Пошук максимального ID
+		maxID := 0
+		for _, article := range articles {
+			if article.ID > maxID {
+				maxID = article.ID
+			}
+		}
+
+		// Створення нової статті
+		newArticle := model.Article{
+			ID:      maxID + 1,
+			Title:   title,
+			Content: content,
+			Date:    date,
+		}
+
+		// Шлях для збереження статті
+		filePath := "./articles/article" + strconv.Itoa(newArticle.ID) + ".json"
+
+		// Збереження статті у файл
+		err = utils.SaveArticle(filePath, newArticle)
+		if err != nil {
+			http.Error(w, "Failed to save article", http.StatusInternalServerError)
+			log.Println("Error saving article:", err)
+			return
+		}
+
+		// Перенаправлення користувача після успішного збереження
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+
+	default:
+		// Якщо метод не підтримується
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func getDashboard(w http.ResponseWriter, r *http.Request) {
+	articles, err := utils.FetchArticles("./articles")
+	if err != nil {
+		http.Error(w, "Failed to load articles", http.StatusInternalServerError)
+		log.Println("Error fetching articles:", err)
+		return
+	}
+
+	if err := utils.RenderTemplate(w, "./templates/dashboard.html", articles); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		log.Println("Error rendering template:", err)
 	}
 }
 
@@ -84,10 +227,20 @@ func getArticle(w http.ResponseWriter, r *http.Request) {
 
 func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		usernameENV := os.Getenv("ADMIN_USERNAME")
-		passwordENV := os.Getenv("ADMIN_PASSWORD")
-		if usernameENV == "" || passwordENV == "" {
-			log.Fatal("Environment variables ADMIN_USERNAME and ADMIN_PASSWORD must be set")
+		file, err := os.Open("config/config.yaml")
+		if err != nil {
+			log.Printf("Error opening a file: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		var config Config
+		decoder := yaml.NewDecoder(file)
+		if err := decoder.Decode(&config); err != nil {
+			log.Printf("Error parsing YAML: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
 
 		// Extract the username and password from the Authorization header.
@@ -96,8 +249,8 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 			// Hash both provided and expected credentials using SHA-256.
 			usernameHash := sha256.Sum256([]byte(username))
 			passwordHash := sha256.Sum256([]byte(password))
-			expectedUsernameHash := sha256.Sum256([]byte(usernameENV))
-			expectedPasswordHash := sha256.Sum256([]byte(passwordENV))
+			expectedUsernameHash := sha256.Sum256([]byte(config.Auth.Username))
+			expectedPasswordHash := sha256.Sum256([]byte(config.Auth.Password))
 
 			// Use ConstantTimeCompare to compare the hashes.
 			usernameMatch := subtle.ConstantTimeCompare(usernameHash[:], expectedUsernameHash[:]) == 1
