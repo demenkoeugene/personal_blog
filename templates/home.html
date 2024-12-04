@@ -8,26 +8,36 @@
         body {
             font-family: Arial, sans-serif;
         }
+
         .article {
             margin-bottom: 20px;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
         }
+
         .article h2 {
             margin: 0;
             font-size: 20px;
         }
+
         .article p {
             margin: 5px 0 0;
         }
+        .article a {
+            text-decoration: none;
+            color: black;
+        }
+
     </style>
 </head>
 <body>
 <h1>Articles</h1>
 {{range .}}
 <div class="article">
-    <h2>{{.Title}}</h2>
+    <h2>
+        <a href="/article/{{.ID}}" class="article-link">{{.Title}}</a>
+    </h2>
     <p>{{.Content}}</p>
     <p>{{.Date}}</p>
 </div>

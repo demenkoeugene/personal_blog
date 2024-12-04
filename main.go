@@ -3,8 +3,10 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -39,18 +41,122 @@ func main() {
 
 func updateArticleHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		http.ServeFile(w, r, "templates/updateArticle.html")
+		// Отримання ID зі шляху
+		path := r.URL.Path
+		id := strings.TrimPrefix(path, "/edit/")
+
+		if id == "" {
+			http.Error(w, "Article ID missing", http.StatusBadRequest)
+			return
+		}
+
+		// Формування шляху до JSON-файлу
+		filePath := fmt.Sprintf("articles/article%s.json", id)
+
+		// Завантаження статті з JSON
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				http.Error(w, "Article not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Failed to load article", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Розпарсити JSON у структуру Article
+		var article model.Article
+		err = json.Unmarshal(data, &article)
+		if err != nil {
+			http.Error(w, "Failed to parse article data", http.StatusInternalServerError)
+			return
+		}
+
+		// Завантаження шаблону
+		tmpl, err := template.ParseFiles("templates/updateArticle.html")
+		if err != nil {
+			http.Error(w, "Failed to load template", http.StatusInternalServerError)
+			return
+		}
+
+		// Рендеринг шаблону з даними статті
+		err = tmpl.Execute(w, article)
+		if err != nil {
+			http.Error(w, "Failed to render template", http.StatusInternalServerError)
+			return
+		}
+	} else if r.Method == http.MethodPost {
+		// Отримання ID зі шляху
+		path := r.URL.Path
+		id := strings.TrimPrefix(path, "/edit/")
+
+		if id == "" {
+			http.Error(w, "Article ID missing", http.StatusBadRequest)
+			return
+		}
+
+		articleID, err := strconv.Atoi(id)
+		if err != nil {
+			http.Error(w, "Invalid article ID format", http.StatusBadRequest)
+			return
+		}
+
+		// Отримання даних із форми
+		err = r.ParseForm()
+		if err != nil {
+			http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+			return
+		}
+
+		title := r.FormValue("title")
+		content := r.FormValue("content")
+		date := r.FormValue("date")
+
+		// Валідація даних
+		if title == "" || content == "" || date == "" {
+			http.Error(w, "All fields are required", http.StatusBadRequest)
+			return
+		}
+
+		// Оновлення статті
+		updatedArticle := model.Article{
+			ID:      articleID,
+			Title:   title,
+			Date:    date,
+			Content: content,
+		}
+
+		// Формування шляху до JSON-файлу
+		filePath := fmt.Sprintf("articles/article%s.json", id)
+
+		// Запис оновленої статті у JSON
+		data, err := json.MarshalIndent(updatedArticle, "", "  ")
+		if err != nil {
+			http.Error(w, "Failed to serialize article", http.StatusInternalServerError)
+			return
+		}
+
+		err = os.WriteFile(filePath, data, 0644)
+		if err != nil {
+			http.Error(w, "Failed to save article", http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Article with ID %s updated successfully", id)
+
+		// Перенаправлення після успішного збереження
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
 func deleteArticleHandler(w http.ResponseWriter, r *http.Request) {
-	// Перевірка методу запиту
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Отримання ID з URL
 	path := r.URL.Path
 	id := strings.TrimPrefix(path, "/delete/") // Видаляємо "/delete/" з шляху
 
