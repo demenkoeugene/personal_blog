@@ -2,6 +2,7 @@ package utils
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"personal_blog/model"
@@ -28,4 +29,9 @@ func FetchArticles(directory string) ([]model.Article, error) {
 	}
 
 	return articles, nil
+}
+
+func HandleError(w http.ResponseWriter, message string, statusCode int, err error) {
+	log.Println(message, ":", err)
+	http.Error(w, message, statusCode)
 }
