@@ -1,0 +1,7 @@
+modules.xml
+*.json
+*.yaml
+ .idea/personal_blog.iml
+ .idea/personal_blog.iml
+ .idea/vcs.xml
+.idea
