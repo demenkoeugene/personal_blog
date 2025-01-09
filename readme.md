@@ -2,6 +2,7 @@
 
 This project is a simple personal blog that allows the admin to add, edit, and delete articles through a web interface. It uses Go for the backend and stores articles in JSON format.
 
+https://roadmap.sh/projects/personal-blog
 ## Getting Started
 
 To run this project on your local machine, follow these steps.
