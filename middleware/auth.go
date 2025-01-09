@@ -17,7 +17,6 @@ func NewAuthenticator(config *config.Config) *Authenticator {
 	}
 }
 
-// BasicAuth middleware
 func (a *Authenticator) BasicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
