@@ -14,4 +14,5 @@ func main() {
 	if err := srv.Start(); err != nil {
 		log.Fatal("Server error:", err)
 	}
+	log.Fatal("good")
 }
